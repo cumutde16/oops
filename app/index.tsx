@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Auth from './auth';
 import { DunyaTuru } from './DunyaTuru';
-import { engelleKullanici, eslesmeBul, mesajGonderGercek, mesajlariDinle, pingGonder, raporGonder, teklifGonder, teklifGuncelle, teklifleriDinle } from './pings';
+import { engelleKullanici, eslesmeBul, karsiProfilGetir, mesajGonderGercek, mesajlariDinle, pingGonder, raporGonder, teklifGonder, teklifGuncelle, teklifleriDinle } from './pings';
+import Profil from './profil';
 import { supabase } from './supabase';
 
 const niyetler = [
@@ -429,7 +430,7 @@ export default function Index() {
   const [tercih, setTercih] = useState('');
   const [ekran, setEkran] = useState('ana');
   const [niyet, setNiyet] = useState(null);
-  const [sure, setSure] = useState(120);
+  const [sure, setSure] = useState(10);
   const [mesajlar, setMesajlar] = useState([]);
   const [yazilan, setYazilan] = useState('');
   const [eslesen, setEslesen] = useState(null);
@@ -444,6 +445,8 @@ export default function Index() {
   const [raporGonderildi, setRaporGonderildi] = useState(false);
   const [randomAnitIndex] = useState(() => Math.floor(Math.random() * anitlar.length));
   const [animasyonOffset] = useState(() => Math.floor(Math.random() * anitlar.length));
+  const [profilAcik, setProfilAcik] = useState(false);
+  const [karsiProfil, setKarsiProfil] = useState<any>(null);
 
   const channelRef = useRef(null);
   const teklifChannelRef = useRef(null);
@@ -454,7 +457,7 @@ export default function Index() {
   const matchIdRef = useRef('');
   const sonSallama = useRef(0);
 
-  const saat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).getHours();
+  const saat = new Date().getHours();
   const gunduzMu = saat >= 6 && saat < 18;
 
   const RandomAnit = anitlar[randomAnitIndex].svg;
@@ -587,8 +590,11 @@ export default function Index() {
   };
 
   const teklifGonderFn = async () => {
-    if (!teklifYer.trim() || !matchIdRef.current) return;
-    await teklifGonder(matchIdRef.current, nicknameRef.current, teklifYer.trim());
+    if (!teklifYer.trim()) return;
+    const mId = matchIdRef.current || matchId;
+    if (!mId) return;
+    matchIdRef.current = mId as string;
+    await teklifGonder(mId as string, nicknameRef.current, teklifYer.trim());
     setTeklifDurum('bekleniyor');
     setTeklifYer('');
   };
@@ -621,6 +627,7 @@ export default function Index() {
     setKarsiBekliyor(false);
     setMenuAcik(false);
     setRaporGonderildi(false);
+    setKarsiProfil(null);
     matchIdRef.current = '';
     if (channelRef.current) { channelRef.current.unsubscribe(); channelRef.current = null; }
     if (teklifChannelRef.current) { teklifChannelRef.current.unsubscribe(); teklifChannelRef.current = null; }
@@ -765,18 +772,83 @@ export default function Index() {
   if (ekran === 'karar') {
     return (
       <View style={s.tam}>
-        <Text style={s.emoji}>⚡</Text>
+        <Text style={s.emoji}>⏱️</Text>
         <Text style={s.baslik}>time's up.</Text>
-        <Text style={s.alt}>meet or pass?</Text>
-        <View style={s.butonlar}>
+        <Text style={s.alt}>check out their profile!</Text>
+        <TouchableOpacity style={s.meet} onPress={async () => {
+          const mId = matchIdRef.current || matchId;
+          if (mId) matchIdRef.current = mId as string;
+          if (eslesen) {
+            const p = await karsiProfilGetir(eslesen.nickname);
+            setKarsiProfil(p);
+          }
+          setEkran('profil_goster');
+        }}>
+          <Text style={s.meetYazi}>see profile →</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.pass, { marginTop: 16 }]} onPress={sifirla}>
+          <Text style={s.passYazi}>pass</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (ekran === 'profil_goster') {
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: '#0a0a0a' }} contentContainerStyle={{ padding: 24, paddingTop: 60 }}>
+        <Text style={{ fontSize: 13, color: '#555', textAlign: 'center', marginBottom: 24, letterSpacing: 2 }}>
+          {eslesen?.nickname}
+        </Text>
+        {karsiProfil?.foto1 && (
+          <View style={{ borderRadius: 20, overflow: 'hidden', marginBottom: 12 }}>
+            <img src={karsiProfil.foto1} style={{ width: '100%', height: 320, objectFit: 'cover' }}/>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+          {karsiProfil?.foto2 && (
+            <View style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}>
+              <img src={karsiProfil.foto2} style={{ width: '100%', height: 160, objectFit: 'cover' }}/>
+            </View>
+          )}
+          {karsiProfil?.foto3 && (
+            <View style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}>
+              <img src={karsiProfil.foto3} style={{ width: '100%', height: 160, objectFit: 'cover' }}/>
+            </View>
+          )}
+        </View>
+        {karsiProfil?.motto && (
+          <View style={{ backgroundColor: '#0f0f0f', borderRadius: 16, padding: 20, marginBottom: 12, borderWidth: 0.5, borderColor: '#1a1a1a' }}>
+            <Text style={{ fontSize: 11, color: '#555', letterSpacing: 2, marginBottom: 8 }}>✦ MOTTO</Text>
+            <Text style={{ fontSize: 16, color: '#fff', fontStyle: 'italic' }}>\{karsiProfil.motto}\</Text>
+          </View>
+        )}
+        {karsiProfil?.sevdikleri && (
+          <View style={{ backgroundColor: '#0f0f0f', borderRadius: 16, padding: 20, marginBottom: 12, borderWidth: 0.5, borderColor: '#1a1a1a' }}>
+            <Text style={{ fontSize: 11, color: '#555', letterSpacing: 2, marginBottom: 8 }}>♥ LOVES</Text>
+            <Text style={{ fontSize: 15, color: '#fff' }}>{karsiProfil.sevdikleri}</Text>
+          </View>
+        )}
+        {karsiProfil?.surpriz && (
+          <View style={{ backgroundColor: '#0f0f0f', borderRadius: 16, padding: 20, marginBottom: 32, borderWidth: 0.5, borderColor: '#1a1a1a' }}>
+            <Text style={{ fontSize: 11, color: '#555', letterSpacing: 2, marginBottom: 8 }}>✦ SURPRISE</Text>
+            <Text style={{ fontSize: 15, color: '#fff' }}>{karsiProfil.surpriz}</Text>
+          </View>
+        )}
+        {!karsiProfil?.foto1 && !karsiProfil?.motto && (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Text style={{ fontSize: 32, marginBottom: 16 }}>🌚</Text>
+            <Text style={{ color: '#555', fontSize: 14, textAlign: 'center' }}>they haven't filled their profile yet</Text>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', gap: 16, justifyContent: 'center', paddingBottom: 40 }}>
           <TouchableOpacity style={s.pass} onPress={sifirla}>
             <Text style={s.passYazi}>Pass</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.meet} onPress={() => setEkran('teklif')}>
-            <Text style={s.meetYazi}>Meet</Text>
+            <Text style={s.meetYazi}>Meet ✓</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -912,13 +984,22 @@ export default function Index() {
     );
   }
 
+  if (profilAcik) {
+    return <Profil onKapat={() => setProfilAcik(false)} />;
+  }
+
   return (
     <View style={s.container}>
       <View style={s.harita}>
         <RandomAnit />
       </View>
       <View style={s.panel}>
-        <Text style={s.logo}>oops.</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 4 }}>
+          <Text style={s.logo}>oops.</Text>
+          <TouchableOpacity onPress={() => setProfilAcik(true)} style={{ padding: 8 }}>
+            <Text style={{ fontSize: 24 }}>👤</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={s.nick2}>hey, {nickname}</Text>
         <Text style={s.alt}>someone nearby is waiting</Text>
         <TouchableOpacity style={s.buton} onPress={() => setEkran('niyet')}>

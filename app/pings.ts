@@ -118,12 +118,13 @@ export const mesajlariDinle = (matchId: string, callback: (mesaj: any) => void) 
 };
 
 export const teklifGonder = async (matchId: string, nickname: string, yer: string) => {
-  await supabase.from('proposals').delete().eq('match_id', matchId);
+  console.log('Teklif gonderiliyor:', matchId, nickname, yer);
   const { data, error } = await supabase
     .from('proposals')
     .insert({ match_id: matchId, sender_nickname: nickname, yer, durum: 'bekliyor' })
-    .select().single();
-  if (error) { console.log('Teklif hatasi:', error); return null; }
+    .select()
+    .single();
+  console.log('Teklif sonuc:', data, error);
   return data;
 };
 
@@ -181,4 +182,37 @@ export const engelliMi = async (nickname: string): Promise<boolean> => {
     .eq('blocked_nickname', nickname)
     .maybeSingle();
   return !!data;
+};
+export const profilGetir = async (userId: string) => {
+  const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+  return data;
+};
+
+export const profilGuncelle = async (profil: any) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const nick = sessionStorage.getItem('oops_nickname') || '';
+  const { error } = await supabase.from('profiles').upsert({ 
+    id: user.id, 
+    nickname: nick,
+    ...profil 
+  });
+  if (error) console.log('Profil kayıt hatası:', error);
+};
+export const fotoyukle = async (file: File, index: number): Promise<string | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const path = `${user.id}/foto${index}-${Date.now()}.jpg`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+  if (error) return null;
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return data.publicUrl;
+};
+export const karsiProfilGetir = async (nickname: string) => {
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('nickname', nickname)
+    .maybeSingle();
+  return data;
 };
